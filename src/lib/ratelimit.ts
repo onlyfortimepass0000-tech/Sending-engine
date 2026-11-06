@@ -11,7 +11,7 @@ export function intLimit(value: string | undefined, fallback: number): number {
 }
 
 /** Fixed-window counter in D1. Returns the new count for the current window. */
-async function hit(db: D1Database, bucket: string, windowSec: number, nowMs: number): Promise<{ count: number; retryAfter: number }> {
+export async function hit(db: D1Database, bucket: string, windowSec: number, nowMs: number): Promise<{ count: number; retryAfter: number }> {
   const nowSec = Math.floor(nowMs / 1000);
   const windowStart = Math.floor(nowSec / windowSec) * windowSec;
   const row = await db

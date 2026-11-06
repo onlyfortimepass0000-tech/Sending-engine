@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { AppEnv } from './env';
 import type { Deps } from './lib/deps';
+import { dashboard } from './dashboard/routes';
 import { links } from './routes-links';
 import { webhooks } from './routes-webhooks';
 import { intake } from './intake';
@@ -25,6 +26,7 @@ export function createApp(opts: Partial<Deps> = {}) {
   app.route('/api/intake', intake);
   app.route('/api/webhooks', webhooks);
   app.route('/', links);
+  app.route('/app', dashboard);
 
   app.notFound((c) => c.json({ ok: false, error: 'not_found' }, 404));
   app.onError((err, c) => {

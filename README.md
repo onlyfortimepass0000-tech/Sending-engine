@@ -24,4 +24,23 @@ curl -X POST http://localhost:8787/api/intake/pk_dev_local \
 # -> {"ok":true}
 ```
 
+## Dashboard
+
+`/app` is the dashboard (overview, leads, lead detail, settings; admins also get clients, embed code and the email cap).
+Sign-in is a magic link by email. With `DRY_RUN=true` the link is printed in the `npm run dev` log. The seed creates
+`owner@dev.example` (client) and `admin@dev.example` (ATOMZ admin).
+
+The first real admin is created once with SQL (then add more from the Admin page):
+
+```bash
+wrangler d1 execute DB --remote --command "INSERT INTO users (id, client_id, email, role, created_at) VALUES (lower(hex(randomblob(16))), NULL, 'you@yourdomain.com', 'admin', strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+```
+
+## How emails go out
+
+Every email (auto-reply, owner alert, each follow-up) is a row in `sequence_jobs`, sent by one idempotent path
+and retried by a cron that runs every 5 minutes. `DAILY_EMAIL_CAP` (default 95) protects Resend's free 100/day:
+auto-replies first, then owner alerts, then follow-ups. Emails come from one shared ATOMZ sender with the client's
+business name as the sender name and the client's inbox as Reply-To.
+
 Secrets never go in the repo: use `wrangler secret put` in production and `.dev.vars` (git-ignored) locally.

@@ -62,7 +62,7 @@ CREATE INDEX idx_jobs_lead ON sequence_jobs (lead_id);
 
 CREATE TABLE email_log (
   id         TEXT PRIMARY KEY,
-  client_id  TEXT NOT NULL REFERENCES clients(id),
+  client_id  TEXT REFERENCES clients(id),              -- NULL for ATOMZ admin login emails
   lead_id    TEXT REFERENCES leads(id),                -- NULL for dashboard login emails
   kind       TEXT NOT NULL CHECK (kind IN ('auto_reply', 'owner_alert', 'followup', 'login')),
   resend_id  TEXT,

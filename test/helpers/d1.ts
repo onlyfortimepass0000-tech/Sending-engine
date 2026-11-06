@@ -35,6 +35,15 @@ class Statement {
     return { success: true, results: [], meta: { changes: Number(info.changes), last_row_id: Number(info.lastInsertRowid) } };
   }
 
+  /** What batch() returns per statement in real D1: rows for statements that return rows, write metadata otherwise. */
+  async exec() {
+    const stmt = this.db.prepare(this.sql);
+    if (stmt.columns().length > 0) {
+      return { success: true, results: stmt.all(...this.params).map((r) => ({ ...(r as Record<string, unknown>) })), meta: { changes: 0 } };
+    }
+    return this.run();
+  }
+
   async raw() {
     const stmt = this.db.prepare(this.sql);
     stmt.setReturnArrays(true);
@@ -56,7 +65,7 @@ class TestD1 {
     this.sqlite.exec('BEGIN');
     try {
       const out = [];
-      for (const s of statements) out.push(await s.run());
+      for (const s of statements) out.push(await s.exec());
       this.sqlite.exec('COMMIT');
       return out;
     } catch (e) {
