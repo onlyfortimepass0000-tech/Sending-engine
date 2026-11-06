@@ -9,3 +9,16 @@ binding = "DB"
 database_name = "enquiry-engine"
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+# Absolute URL of this Worker; used for links inside emails. Set to the real URL at deploy time (Stage 5).
+PUBLIC_BASE_URL = "http://localhost:8787"
+DAILY_EMAIL_CAP = "95"
+
+# Workers AI (optional: sorting falls back to rules when this binding is absent).
+# `wrangler dev` needs a Cloudflare login for AI bindings, so it is off by default. Uncomment at deploy time (Stage 5):
+# [ai]
+# binding = "AI"

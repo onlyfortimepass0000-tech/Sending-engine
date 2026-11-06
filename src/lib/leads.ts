@@ -1,6 +1,31 @@
 import type { ClientRecord } from './clients';
 import type { Submission } from './submission';
 
+export type LeadStatus = 'new' | 'contacted' | 'booked' | 'won' | 'lost' | 'not_interested' | 'unsubscribed';
+
+export interface LeadRow {
+  id: string;
+  client_id: string;
+  name: string | null;
+  email: string;
+  phone: string | null;
+  message: string | null;
+  extras: string | null;
+  source: string;
+  source_meta: string | null;
+  category: string | null;
+  urgency: 'low' | 'normal' | 'high' | null;
+  summary: string | null;
+  status: LeadStatus;
+  has_phone: number;
+  consent_text: string;
+  consent_at: string;
+  created_at: string;
+  first_response_at: string | null;
+}
+
+export const getLead = (db: D1Database, id: string) => db.prepare('SELECT * FROM leads WHERE id = ?').bind(id).first<LeadRow>();
+
 export const DEDUPE_WINDOW_MS = 10 * 60 * 1000;
 
 /**

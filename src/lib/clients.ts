@@ -1,4 +1,5 @@
 import { randomHex } from './crypto';
+import type { z } from 'zod';
 import { parseSettings, settingsSchema, type ClientSettings } from './settings';
 
 export interface ClientRecord {
@@ -14,7 +15,7 @@ export interface ClientRecord {
 
 const KEY_FORMAT = /^[A-Za-z0-9_-]{6,64}$/;
 
-interface JoinedRow {
+export interface JoinedRow {
   id: string;
   name: string;
   slug: string;
@@ -34,18 +35,27 @@ function parseOrigins(raw: string): string[] {
   }
 }
 
+const CLIENT_SELECT = `SELECT c.id, c.name, c.slug, c.public_key, c.allowed_origins, c.timezone, c.active, s.settings
+         FROM clients c LEFT JOIN client_settings s ON s.client_id = c.id`;
+
 /** Looks up an active-or-inactive client by its public key, with settings, in one read. */
 export async function findClientByKey(db: D1Database, key: string): Promise<ClientRecord | null> {
   if (!KEY_FORMAT.test(key)) return null;
-  const row = await db
-    .prepare(
-      `SELECT c.id, c.name, c.slug, c.public_key, c.allowed_origins, c.timezone, c.active, s.settings
-         FROM clients c LEFT JOIN client_settings s ON s.client_id = c.id
-        WHERE c.public_key = ?`,
-    )
-    .bind(key)
-    .first<JoinedRow>();
-  if (!row) return null;
+  const row = await db.prepare(`${CLIENT_SELECT} WHERE c.public_key = ?`).bind(key).first<JoinedRow>();
+  return row ? mapClient(row) : null;
+}
+
+export async function findClientById(db: D1Database, id: string): Promise<ClientRecord | null> {
+  const row = await db.prepare(`${CLIENT_SELECT} WHERE c.id = ?`).bind(id).first<JoinedRow>();
+  return row ? mapClient(row) : null;
+}
+
+export async function findClientBySlug(db: D1Database, slug: string): Promise<ClientRecord | null> {
+  const row = await db.prepare(`${CLIENT_SELECT} WHERE c.slug = ?`).bind(slug).first<JoinedRow>();
+  return row ? mapClient(row) : null;
+}
+
+export function mapClient(row: JoinedRow): ClientRecord {
   return {
     id: row.id,
     name: row.name,
@@ -63,7 +73,7 @@ export interface NewClient {
   slug: string;
   allowedOrigins?: string[];
   timezone?: string;
-  settings?: Partial<ClientSettings>;
+  settings?: z.input<typeof settingsSchema>;
   publicKey?: string;
 }
 

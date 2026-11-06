@@ -28,10 +28,10 @@ export const settingsSchema = z.object({
     .default([]),
   urgency: z
     .object({
-      high: z.array(z.string().min(1).max(60)).max(50),
-      low: z.array(z.string().min(1).max(60)).max(50),
+      high: z.array(z.string().min(1).max(60)).max(50).default(['urgent', 'asap', 'today', 'immediately', 'emergency']),
+      low: z.array(z.string().min(1).max(60)).max(50).default([]),
     })
-    .prefault({ high: ['urgent', 'asap', 'today', 'immediately', 'emergency'], low: [] }),
+    .prefault({}),
   templates: z
     .object({
       auto_reply: template.optional(),
@@ -41,16 +41,21 @@ export const settingsSchema = z.object({
     .prefault({}),
   sequence: z
     .object({
-      days: z.number().int().min(0).max(14),
-      emails_per_day: z.number().int().min(1).max(2),
+      days: z.number().int().min(0).max(14).default(5),
+      emails_per_day: z.number().int().min(1).max(2).default(1),
       /** 1-based sequence days that send 2 emails instead of emails_per_day. */
-      double_days: z.array(z.number().int().min(1).max(14)).max(14),
-      window_start: hhmm,
-      window_end: hhmm,
+      double_days: z.array(z.number().int().min(1).max(14)).max(14).default([]),
+      window_start: hhmm.default('09:00'),
+      window_end: hhmm.default('19:00'),
     })
-    .prefault({ days: 5, emails_per_day: 1, double_days: [], window_start: '09:00', window_end: '19:00' }),
+    .refine((s) => s.window_start < s.window_end, { message: 'window_start must be before window_end' })
+    .prefault({}),
   alert_recipients: z.array(z.email()).max(10).default([]),
   from_name: z.string().max(100).optional(),
+  /** Per-client sending address (needs that domain verified in Resend). Default: the shared ATOMZ sender (env DEFAULT_FROM_EMAIL). */
+  from_email: z.email().optional(),
+  /** Let the small Workers AI model help with category/urgency/summary. Rules still run first and always work without it. */
+  ai_sorting: z.boolean().default(true),
   reply_to: z.email().optional(),
   consent_text: z.string().min(1).max(1000).default(DEFAULT_CONSENT_TEXT),
   business_address: z.string().max(300).default(''),

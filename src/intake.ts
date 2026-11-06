@@ -1,8 +1,10 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { AppEnv } from './env';
 import { parseBody } from './lib/body';
 import { findClientByKey } from './lib/clients';
+import { processNewLead } from './lib/lead-flow';
 import { insertLead } from './lib/leads';
+import { enqueueLeadJobs } from './lib/outbox';
 import { allowedHosts, isOriginAllowed } from './lib/origin';
 import { messagePage } from './lib/pages';
 import { checkIntakeRate, DEFAULT_IP_MAX, DEFAULT_KEY_MAX, intLimit } from './lib/ratelimit';
@@ -107,6 +109,37 @@ intake.post('/:key', async (c) => {
   if (!parsed.ok) return fail(req, parsed.error, cors);
 
   // A duplicate (same email + message within 10 minutes) is answered exactly like a new lead.
-  await insertLead(c.env.DB, client, parsed.value, c.get('now')());
+  const now = c.get('now')();
+  const { created, id } = await insertLead(c.env.DB, client, parsed.value, now);
+  if (created) {
+    try {
+      // Email jobs are written before we answer, so even if the background work below is cut short the cron still delivers them.
+      const jobs = await enqueueLeadJobs(c.env.DB, client, id, now);
+      await defer(
+        c,
+        processNewLead(c.env, c.get('deps'), {
+          clientId: client.id,
+          leadId: id,
+          baseUrl: (c.env.PUBLIC_BASE_URL || new URL(req.url).origin).replace(/\/$/, ''),
+          ...jobs,
+        }),
+      );
+    } catch (e) {
+      // The lead is saved; never turn an email problem into a failed form post.
+      console.error('post-intake error', e instanceof Error ? e.name : 'error');
+    }
+  }
   return succeed(req, client.settings.thank_you_url, cors);
 });
+
+/** Run in the background on Workers (waitUntil); in tests there is no ExecutionContext, so just await it. */
+async function defer(c: Context<AppEnv>, work: Promise<unknown>): Promise<void> {
+  let ctx: { waitUntil(p: Promise<unknown>): void } | undefined;
+  try {
+    ctx = c.executionCtx;
+  } catch {
+    /* no execution context */
+  }
+  if (ctx) ctx.waitUntil(work);
+  else await work;
+}
