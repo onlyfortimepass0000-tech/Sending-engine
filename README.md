@@ -24,6 +24,16 @@ curl -X POST http://localhost:8787/api/intake/pk_dev_local \
 # -> {"ok":true}
 ```
 
+## Putting it on a website
+
+- `<script src="https://YOUR-WORKER/embed.js?key=PUBLIC_KEY" defer></script>` connects every `<form data-enquiry="name">`
+  (JSON post, no reload, consent text shown, honeypot added, utm_* and referrer captured) and renders a ready-made form into
+  `<div data-enquiry-form></div>`.
+- `https://YOUR-WORKER/f/<slug>?src=instagram-bio` is a hosted form for bios and QR codes.
+- Webhooks / other systems: `POST /api/intake/<key>` with JSON.
+
+Going live (accounts, DNS, secrets, deploy): see [DEPLOY.md](DEPLOY.md). Checks: `npm test`, `npm run smoke`.
+
 ## Dashboard
 
 `/app` is the dashboard (overview, leads, lead detail, settings; admins also get clients, embed code and the email cap).

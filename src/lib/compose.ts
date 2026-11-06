@@ -13,10 +13,19 @@ export const OUTCOME_LINK_TTL_DAYS = 14;
 const UNSUB_TTL_DAYS = 400;
 const DAY_MS = 86_400_000;
 
+const isPlaceholderUrl = (u: string) => /localhost|127\.0\.0\.1|YOUR-/i.test(u);
+
+/**
+ * Absolute URL used inside emails. A localhost / "YOUR-SUBDOMAIN" value is only acceptable in DRY_RUN:
+ * real emails must never go out with links that point nowhere.
+ */
 export const baseUrl = (env: Env, fallback?: string): string => {
-  const b = (env.PUBLIC_BASE_URL || fallback || '').replace(/\/$/, '');
-  if (!b) throw new Error('PUBLIC_BASE_URL is not set');
-  return b;
+  const ok = (u: string | undefined): u is string => Boolean(u) && (env.DRY_RUN === 'true' || !isPlaceholderUrl(u!));
+  const configured = env.PUBLIC_BASE_URL?.replace(/\/$/, '');
+  if (ok(configured)) return configured;
+  const fromRequest = fallback?.replace(/\/$/, '');
+  if (ok(fromRequest)) return fromRequest;
+  throw new Error('PUBLIC_BASE_URL is not configured');
 };
 
 export function templateVars(client: ClientRecord, lead: LeadRow): TemplateVars {

@@ -1,17 +1,19 @@
 # PROGRESS (read this first, nothing else; keep under 60 lines)
 
 ## Status
-Stages 1-4 DONE (draft PR #1). NEXT: Stage 5 = /embed.js, hosted form /f/:slug, deploy to Cloudflare, README polish,
-client zero (ATOMZ site), GET /api/admin/export. Acceptance: live end-to-end test from a real form.
+Stages 1-5 CODE DONE (draft PR #1). Decision: stay on Cloudflare Workers + D1 (Vercel Hobby = daily cron + non-commercial, no Workers AI).
+NEXT = human steps in DEPLOY.md (Resend key + domain DNS, wrangler deploy + secrets, first admin, client zero), then the live test.
 
 ## Run
-- `npm test` (124 tests; Node + node:sqlite D1 double, applies the real /migrations) | `npm run typecheck`
-- Local: `cp .dev.vars.example .dev.vars; npm run db:migrate:local; npm run db:seed:local; npm run dev` (DRY_RUN: emails and
-  magic links are printed in the dev log). Seed logins: owner@dev.example (client), admin@dev.example (admin). Key pk_dev_local.
-- Stages 2-4 were also run on real workerd + local D1 (curl and headless Chromium): flow, cron, outcome link, login, admin.
+- `npm test` (137 tests; Node + node:sqlite D1 double, applies the real /migrations) | `npm run typecheck`
+- `npm run smoke` = 30 live checks on real workerd + fresh local D1 (all stages). Embed script also verified in headless Chromium
+  from another origin (cross-origin CORS, first-touch utm, default form, allow-list refusal).
+- Local dev: `cp .dev.vars.example .dev.vars; npm run db:migrate:local; npm run db:seed:local; npm run dev` (DRY_RUN prints emails and
+  magic links). Seed logins owner@dev.example (client), admin@dev.example (admin). Key pk_dev_local.
 
 ## Layout (src/)
 index.ts app.ts cron.ts intake.ts routes-links.ts (/o/:t outcome, /u/:t unsubscribe) routes-webhooks.ts (Resend)
+routes-public.ts (/embed.js, /f/:slug) hosted-form.ts embed-js.ts routes-admin-api.ts (GET /api/admin/export)
 dashboard/{routes.tsx,views.tsx,queries.ts,settings-form.ts} (/app)
 lib/: settings clients leads status sequence outbox lead-flow compose templates sorting email whatsapp token svix time auth ...
 
@@ -39,18 +41,17 @@ Dashboard: server-rendered Hono JSX, zero JS, CSP script-src none, no caching. S
  Settings use friendly text formats (categories "Name: kw, kw"; follow-ups = blocks split by "---").
 Migration 0001 was amended in place in Stages 2-4 (never deployed). From the first real deploy on, migrations are append-only.
 
-## Stage 5 TODO
-- /embed.js?key= (hook forms with data-enquiry or render default form, capture utm_* + referrer + first-touch), /f/:slug hosted form,
-  GET /api/admin/export?client=&since= (Bearer ADMIN_API_TOKEN), README, client zero.
-- Deploy: `wrangler d1 create enquiry-engine` -> database_id in wrangler.toml; `d1 migrations apply DB --remote`; secrets TOKEN_SECRET,
-  RESEND_API_KEY, RESEND_WEBHOOK_SECRET, ADMIN_API_TOKEN; vars PUBLIC_BASE_URL, DEFAULT_FROM_EMAIL (no DRY_RUN); uncomment [ai];
-  first admin: INSERT INTO users (id,client_id,email,role,created_at) VALUES (lower(hex(randomblob(16))),NULL,'you@..','admin',strftime('%Y-%m-%dT%H:%M:%fZ','now'));
-  Resend webhook -> /api/webhooks/resend (email.bounced, email.complained).
-- The Cloudflare MCP connector can list/create D1/KV but cannot deploy Workers, set secrets, cron or DNS: use wrangler + API token.
+## Stage 5 notes
+- embed.js: ES5, no build step, reads ?key= from its own URL, config at GET /api/intake/:key/config (business + consent text).
+  Hosted form /f/:slug is plain HTML (no JS): ?src= sets the source, utm_* and external Referer pass through.
+- Export: Bearer ADMIN_API_TOKEN, ?client=<id|slug>&since&until&limit&offset; wrong tokens throttled (10 / 10 min / IP).
+- Safety: real emails refuse to send while PUBLIC_BASE_URL is localhost / YOUR-SUBDOMAIN (falls back to the request origin in the intake path).
+- The Cloudflare MCP connector can list/create D1 but cannot deploy Workers, secrets, cron or DNS: deploy = wrangler (DEPLOY.md).
   Account already has D1 tool-checklist-db, cadence-db and Worker tool-checklist-tracker: do not touch.
+- NOT verified (needs real accounts): Workers AI output quality, real Resend delivery, Resend webhook payload shape (coded from docs).
 
-## Needs the human
-Resend account + API key + sending domain DNS (SPF, DKIM, DMARC); Cloudflare API token (or run the deploy commands yourself);
-final product name; consent wording sign-off (DEFAULT_CONSENT_TEXT in lib/settings.ts).
-OPEN QUESTION: "client has Excel / own database": (a) push each new lead out to their sheet/CRM (suggest per-client webhook_url,
- post-v1) or (b) import and email their existing contacts (out of scope: needs consent proof, bulk-mail risk)? Waiting on the user.
+## Needs the human (see DEPLOY.md checklist)
+Resend account + key + subdomain DNS (not the Instantly warm-up domain); wrangler login/deploy + secrets (or an API token via the credential
+form); admin email; client zero details; consent wording sign-off (DEFAULT_CONSENT_TEXT in lib/settings.ts); final product name.
+OPEN: Excel/own-database: user wants (1) blank DB filled by form submits = what is built, (2) import contacts and email them = NOT built
+(outbound/consent risk). Per-client webhook_url for pushing leads to Sheets/CRM is the suggested post-v1 add-on.

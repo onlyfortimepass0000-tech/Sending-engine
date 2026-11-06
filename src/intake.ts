@@ -73,6 +73,18 @@ intake.options('/:key', async (c) => {
   });
 });
 
+// What the embed script needs to show next to the form: the business name and the consent wording.
+intake.get('/:key/config', async (c) => {
+  const client = await findClientByKey(c.env.DB, c.req.param('key'));
+  if (!client || !client.active) return c.json({ ok: false, error: 'not_found' }, 404);
+  const origin = c.req.header('origin');
+  if (origin && !isOriginAllowed(origin, client.allowed_origins, new URL(c.req.url).origin)) return c.json({ ok: false, error: 'origin_not_allowed' }, 403);
+  return c.json({ ok: true, business: client.name, consent_text: client.settings.consent_text }, 200, {
+    ...(origin ? corsHeaders(origin) : {}),
+    'cache-control': 'public, max-age=300',
+  });
+});
+
 intake.post('/:key', async (c) => {
   const req = c.req.raw;
   const key = c.req.param('key');
@@ -120,7 +132,7 @@ intake.post('/:key', async (c) => {
         processNewLead(c.env, c.get('deps'), {
           clientId: client.id,
           leadId: id,
-          baseUrl: (c.env.PUBLIC_BASE_URL || new URL(req.url).origin).replace(/\/$/, ''),
+          baseUrl: new URL(req.url).origin, // fallback only: baseUrl() prefers a properly configured PUBLIC_BASE_URL
           ...jobs,
         }),
       );

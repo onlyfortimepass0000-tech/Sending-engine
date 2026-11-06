@@ -2,7 +2,9 @@ import { Hono } from 'hono';
 import type { AppEnv } from './env';
 import type { Deps } from './lib/deps';
 import { dashboard } from './dashboard/routes';
+import { adminApi } from './routes-admin-api';
 import { links } from './routes-links';
+import { publicRoutes } from './routes-public';
 import { webhooks } from './routes-webhooks';
 import { intake } from './intake';
 import { messagePage } from './lib/pages';
@@ -25,6 +27,8 @@ export function createApp(opts: Partial<Deps> = {}) {
   app.get('/thanks', () => messagePage(200, 'Thank you', 'We have your enquiry and will be in touch soon.'));
   app.route('/api/intake', intake);
   app.route('/api/webhooks', webhooks);
+  app.route('/api/admin', adminApi);
+  app.route('/', publicRoutes);
   app.route('/', links);
   app.route('/app', dashboard);
 

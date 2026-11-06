@@ -3,6 +3,9 @@ DRY_RUN=true
 # Dev-only placeholder. Production: `wrangler secret put TOKEN_SECRET` with a long random value.
 TOKEN_SECRET=dev-only-token-secret-change-me-0123456789
 DEFAULT_FROM_EMAIL=enquiries@example.invalid
+PUBLIC_BASE_URL=http://localhost:8787
+# Dev-only token for GET /api/admin/export. Production: `wrangler secret put ADMIN_API_TOKEN`.
+ADMIN_API_TOKEN=dev-admin-api-token-change-me-0123456789
 # Relaxed rate limits for local curl testing (production defaults: 10 per IP+key per 10 min, 200 per key per hour)
 RATE_LIMIT_IP_MAX=1000
 RATE_LIMIT_KEY_MAX=10000

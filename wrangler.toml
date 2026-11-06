@@ -14,9 +14,12 @@ migrations_dir = "migrations"
 crons = ["*/5 * * * *"]
 
 [vars]
-# Absolute URL of this Worker; used for links inside emails. Set to the real URL at deploy time (Stage 5).
-PUBLIC_BASE_URL = "http://localhost:8787"
+# Absolute URL of this Worker, used for links inside emails. REPLACE before the first deploy (see DEPLOY.md).
+# Real emails refuse to send while this still says YOUR-SUBDOMAIN or localhost. Local dev overrides it from .dev.vars.
+PUBLIC_BASE_URL = "https://enquiry-engine.YOUR-SUBDOMAIN.workers.dev"
 DAILY_EMAIL_CAP = "95"
+# Shared sender, an address on a domain verified in Resend (see DEPLOY.md):
+# DEFAULT_FROM_EMAIL = "enquiries@mail.YOURDOMAIN.com"
 
 # Workers AI (optional: sorting falls back to rules when this binding is absent).
 # `wrangler dev` needs a Cloudflare login for AI bindings, so it is off by default. Uncomment at deploy time (Stage 5):
