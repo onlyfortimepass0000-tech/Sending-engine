@@ -1,0 +1,27 @@
+name = "enquiry-engine"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+# Stage 5: replace database_id with the real D1 id (`wrangler d1 create enquiry-engine`).
+# Local dev (`wrangler dev`) ignores it and uses a local SQLite file under .wrangler/.
+[[d1_databases]]
+binding = "DB"
+database_name = "enquiry-engine"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+# Absolute URL of this Worker, used for links inside emails. REPLACE before the first deploy (see DEPLOY.md).
+# Real emails refuse to send while this still says YOUR-SUBDOMAIN or localhost. Local dev overrides it from .dev.vars.
+PUBLIC_BASE_URL = "https://enquiry-engine.YOUR-SUBDOMAIN.workers.dev"
+DAILY_EMAIL_CAP = "95"
+# Shared sender, an address on a domain verified in Resend (see DEPLOY.md):
+# DEFAULT_FROM_EMAIL = "enquiries@mail.YOURDOMAIN.com"
+
+# Workers AI (optional: sorting falls back to rules when this binding is absent).
+# `wrangler dev` needs a Cloudflare login for AI bindings, so it is off by default. Uncomment at deploy time (Stage 5):
+# [ai]
+# binding = "AI"
