@@ -1,8 +1,10 @@
 # PROGRESS (read this first, nothing else; keep under 60 lines)
 
 ## Status
-Stages 1-5 CODE DONE (draft PR #1). Decision: stay on Cloudflare Workers + D1 (Vercel Hobby = daily cron + non-commercial, no Workers AI).
-NEXT = human steps in DEPLOY.md (Resend key + domain DNS, wrangler deploy + secrets, first admin, client zero), then the live test.
+DEPLOYED: https://enquiry-engine.tool-checklist-tracker.workers.dev (D1 enquiry-engine, migrations applied, cron */5, [ai] bound,
+ TOKEN_SECRET set; DEFAULT_FROM_EMAIL enquiries@mail.atomz.online; Resend domain mail.atomz.online verified, DNS in Vercel).
+LEFT: RESEND_API_KEY (NEW key; the first one was pasted in chat, rotate) + RESEND_WEBHOOK_SECRET set by the user in the CF dashboard,
+ first admin row, client zero (ATOMZ site), live end-to-end test. ADMIN_API_TOKEN intentionally unset (export returns 503).
 
 ## Run
 - `npm test` (137 tests; Node + node:sqlite D1 double, applies the real /migrations) | `npm run typecheck`
