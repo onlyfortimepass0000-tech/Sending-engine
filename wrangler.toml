@@ -1,0 +1,34 @@
+name = "enquiry-engine"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+# Stage 5: replace database_id with the real D1 id (`wrangler d1 create enquiry-engine`).
+# Local dev (`wrangler dev`) ignores it and uses a local SQLite file under .wrangler/.
+[[d1_databases]]
+binding = "DB"
+database_name = "enquiry-engine"
+database_id = "fad4c0fa-dc66-4021-970f-0a4b77e956f6"
+migrations_dir = "migrations"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+# Absolute URL of this Worker, used for links inside emails. REPLACE before the first deploy (see DEPLOY.md).
+# Real emails refuse to send while this still says YOUR-SUBDOMAIN or localhost. Local dev overrides it from .dev.vars.
+PUBLIC_BASE_URL = "https://enquiry-engine.tool-checklist-tracker.workers.dev"
+DAILY_EMAIL_CAP = "95"
+# Resend free plan is 3,000 a month; we stop at 2,700 to keep headroom (received replies count too).
+MONTHLY_EMAIL_CAP = "2700"
+# New-domain ramp-up: 25 a day for 7 days, then 50 a day for 7 days, then DAILY_EMAIL_CAP. "off" disables it.
+RAMP_SCHEDULE = "25:7,50:7"
+# Automatic reply detection. Turn ON ("true") only AFTER "Enable receiving" is done for mail.atomz.online in Resend
+# and the webhook also sends email.received (see EMAIL-SAFETY.md section 5). Until then replies would bounce.
+INBOUND_ENABLED = "false"
+# Shared sender, an address on a domain verified in Resend (see DEPLOY.md):
+DEFAULT_FROM_EMAIL = "enquiries@mail.atomz.online"
+
+# Workers AI (optional: sorting falls back to rules when this binding is absent).
+# `wrangler dev` needs a Cloudflare login for AI bindings, so it is off by default. Uncomment at deploy time (Stage 5):
+[ai]
+binding = "AI"
