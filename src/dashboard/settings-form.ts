@@ -35,6 +35,9 @@ export function settingsToForm(s: ClientSettings): FormFields {
     owner_alert_subject: t.owner_alert?.subject ?? '',
     owner_alert_body: t.owner_alert?.body ?? '',
     followups: t.followups.map((f) => `Subject: ${f.subject}\n${f.body}`).join('\n---\n'),
+    payments_lead_days: String(s.payments.lead_days),
+    payments_currency: s.payments.currency,
+    payments_instructions: s.payments.instructions,
   };
 }
 
@@ -112,6 +115,7 @@ export function formToSettings(
     whatsapp_template: f.whatsapp_template,
     default_country_code: f.default_country_code?.trim(),
     thank_you_url: opt(f.thank_you_url),
+    payments: { lead_days: Number(f.payments_lead_days), currency: (f.payments_currency ?? '').trim().toUpperCase(), instructions: (f.payments_instructions ?? '').trim() },
   };
   const parsed = settingsSchema.safeParse(raw);
   if (!parsed.success) {

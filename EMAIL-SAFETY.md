@@ -55,7 +55,7 @@ Researched 14 Nov 2026 from Resend's and Google's own pages (sources at the bott
 - Follow-ups only go out inside the client's sending hours.
 - SPF, DKIM and the bounce route for `mail.atomz.online` are verified.
 
-**To be built with the Payments module (planned):**
+**Built with the Payments module (now in the code):**
 1. **Ramp-up for the new domain:** about 25 emails a day for the first week, 50 for the second, then the normal cap. All settings can be changed.
 2. **Monthly guard** below 3,000, counting each recipient and each received reply.
 3. **Quota-aware retries:** if Resend says the daily quota is used up, wait until the next UTC midnight (the monthly one: until next month) instead of retrying uselessly.

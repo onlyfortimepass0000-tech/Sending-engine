@@ -5,6 +5,7 @@ import type { LeadRow } from './leads';
 import { escapeHtml as esc, followupTemplate, oneLine, renderTemplate, resolveTemplates, textToHtml, type TemplateVars } from './templates';
 import { requireSecret, signToken } from './token';
 import { whatsappLink } from './whatsapp';
+import { replyAddress } from './reply-address';
 
 /** Thrown when a job should be skipped rather than retried (e.g. no one to send the owner alert to). */
 export class SkipJob extends Error {}
@@ -46,7 +47,13 @@ function fromHeader(env: Env, client: ClientRecord): string {
   return `"${display}" <${address}>`;
 }
 
-const replyTo = (client: ClientRecord): string | undefined => client.settings.reply_to ?? client.settings.alert_recipients[0];
+const ownerInbox = (client: ClientRecord): string | undefined => client.settings.reply_to ?? client.settings.alert_recipients[0];
+
+/** The owner's inbox, plus (once Resend receiving is on) a tagged address so a reply is detected automatically. */
+export async function replyToFor(env: Env, client: ClientRecord, kind: 'p' | 'l', id: string): Promise<string[]> {
+  const inbound = await replyAddress(env, kind, id);
+  return [ownerInbox(client), inbound].filter((x): x is string => Boolean(x));
+}
 
 const wrapHtml = (inner: string) =>
   `<!doctype html><html><body style="margin:0;padding:24px;background:#f4f5f7;font:15px/1.55 system-ui,-apple-system,Segoe UI,sans-serif;color:#1b1f24"><div style="max-width:560px;margin:0 auto;background:#fff;padding:24px;border-radius:10px">${inner}</div></body></html>`;
@@ -73,16 +80,18 @@ export async function buildEmail(env: Env, job: EmailJob, client: ClientRecord, 
   const unsubUrl = `${base}/u/${unsubToken}`;
   const body = renderTemplate(tpl.body, vars);
   const footerLines = [client.name, settings.business_address].filter(Boolean);
+  const reason = `You are receiving this because you contacted ${client.name}.`;
   return {
     from,
     to: [lead.email],
-    replyTo: replyTo(client),
+    replyTo: await replyToFor(env, client, 'l', lead.id),
     subject: oneLine(renderTemplate(tpl.subject, vars)),
-    text: `${body}\n\n--\n${footerLines.join('\n')}\nUnsubscribe: ${unsubUrl}`,
+    text: `${reason} Unsubscribe: ${unsubUrl}\n\n${body}\n\n--\n${footerLines.join('\n')}\nUnsubscribe: ${unsubUrl}`,
     html: wrapHtml(
-      `${textToHtml(body)}<hr style="border:0;border-top:1px solid #e3e6ea;margin:20px 0"><p style="margin:0;font-size:12px;color:#6b7280">${footerLines
-        .map(esc)
-        .join('<br>')}<br><a href="${esc(unsubUrl)}" style="color:#6b7280">Unsubscribe</a></p>`,
+      `<p style="margin:0 0 16px;font-size:12px;color:#6b7280">${esc(reason)} <a href="${esc(unsubUrl)}" style="color:#6b7280">Unsubscribe</a></p>` +
+        `${textToHtml(body)}<hr style="border:0;border-top:1px solid #e3e6ea;margin:20px 0"><p style="margin:0;font-size:12px;color:#6b7280">${footerLines
+          .map(esc)
+          .join('<br>')}<br><a href="${esc(unsubUrl)}" style="color:#6b7280">Unsubscribe</a></p>`,
     ),
     headers: { 'List-Unsubscribe': `<${unsubUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
   };

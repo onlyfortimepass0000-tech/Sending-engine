@@ -65,6 +65,16 @@ export const settingsSchema = z.object({
     .default('Hi {{name}}, thanks for your enquiry with {{business}}. How can we help?'),
   /** Country code (digits, no +) added when a phone is entered without one, for the wa.me link. */
   default_country_code: z.string().regex(/^\d{1,3}$/).default('91'),
+  /** Payment reminders (the "Payments" section). */
+  payments: z
+    .object({
+      /** reminder 1 goes out this many days before the due date */
+      lead_days: z.number().int().min(0).max(14).default(3),
+      currency: z.string().regex(/^[A-Z]{3}$/, 'use a 3-letter code such as INR').default('INR'),
+      /** shown in every reminder under "How to pay", e.g. UPI id or bank details */
+      instructions: z.string().max(600).default(''),
+    })
+    .prefault({}),
   /** Where plain (non-JSON) form posts are redirected after a successful submit. */
   thank_you_url: z
     .url()

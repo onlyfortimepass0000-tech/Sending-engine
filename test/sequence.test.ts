@@ -29,7 +29,7 @@ describe('5-day follow-up sequence (time-faked)', () => {
       await t.cron(); // a second tick in the same minute must not send it again
       expect(followups(t)).toHaveLength(i + 1);
       const mail = followups(t)[i]!;
-      expect(mail).toMatchObject({ subject, to: ['priya@example.com'], replyTo: 'owner@acme.example' });
+      expect(mail).toMatchObject({ subject, to: ['priya@example.com'], replyTo: ['owner@acme.example'] });
       expect(mail.headers!['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
       expect(mail.text).toContain('Hi Priya Shah,');
       expect(mail.text).toContain('Unsubscribe: https://engine.test/u/');

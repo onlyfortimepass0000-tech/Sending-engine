@@ -22,7 +22,7 @@ describe('new lead -> sorted, auto-reply, owner alert', () => {
     expect(t.sent).toHaveLength(2);
     const [reply, alert] = t.sent;
     // auto-reply: to the enquirer, from the business name on the shared sender, replies go to the client
-    expect(reply).toMatchObject({ to: ['priya@example.com'], replyTo: 'owner@acme.example', from: '"Acme Dental" <enquiries@mail.atomz.test>', subject: 'Thanks for contacting Acme Dental' });
+    expect(reply).toMatchObject({ to: ['priya@example.com'], replyTo: ['owner@acme.example'], from: '"Acme Dental" <enquiries@mail.atomz.test>', subject: 'Thanks for contacting Acme Dental' });
     expect(reply!.text).toContain('Hi Priya Shah,');
     expect(reply!.text).toContain('(Emergency)');
     expect(reply!.text).toContain('1 Main Road, Thane');

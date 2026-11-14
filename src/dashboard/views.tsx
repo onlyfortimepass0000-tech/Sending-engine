@@ -7,6 +7,7 @@ import { LEAD_STATUSES } from '../lib/status';
 import { DEFAULT_FORM_HINTS, type FormFields } from './settings-form';
 import type { LeadFilters, TimelineItem } from './queries';
 import type { overview, listLeads, filterOptions } from './queries';
+import type { Flags } from '../lib/safety';
 
 const CSS = `
 :root{--bg:#f6f7f9;--card:#fff;--ink:#1b1f24;--mute:#6b7280;--line:#e3e6ea;--brand:#0b5fff;--ok:#15803d;--bad:#b91c1c;--warn:#b45309}
@@ -55,6 +56,8 @@ export const Chip: FC<{ status: string }> = ({ status }) => <span class={`chip s
 export interface Ctx {
   user: SessionUser;
   scope: ClientRecord | null;
+  /** loaded for admins only: drives the red "sending is paused" banner */
+  flags?: Flags;
 }
 
 export const Shell: FC<PropsWithChildren<{ title: string }>> = ({ title, children }) => (
@@ -80,13 +83,22 @@ export const Layout: FC<PropsWithChildren<{ title: string; ctx: Ctx; active?: st
       <nav>
         {ctx.scope && <a href="/app" class={active === 'overview' ? 'on' : ''}>Overview</a>}
         {ctx.scope && <a href="/app/leads" class={active === 'leads' ? 'on' : ''}>Leads</a>}
+        {ctx.scope && <a href="/app/payments" class={active === 'payments' ? 'on' : ''}>Payments</a>}
         {ctx.scope && <a href="/app/settings" class={active === 'settings' ? 'on' : ''}>Settings</a>}
         {ctx.user.role === 'admin' && <a href="/app/admin" class={active === 'admin' ? 'on' : ''}>Admin</a>}
       </nav>
       <span class="small mute">{ctx.user.email}</span>
       <form method="post" action="/app/logout"><button class="alt" type="submit">Sign out</button></form>
     </header>
-    <main>{children}</main>
+    <main>
+      {ctx.flags && (ctx.flags.pause_all.on || ctx.flags.pause_automated.on) && (
+        <div class="err">
+          <b>Sending is paused.</b> {ctx.flags.pause_all.on ? `All emails to people are paused (${ctx.flags.pause_all.reason ?? 'no reason given'}).` : `Follow-ups and payment reminders are paused: ${ctx.flags.pause_automated.reason ?? 'no reason given'}`}{' '}
+          <a href="/app/admin">Review and resume</a>
+        </div>
+      )}
+      {children}
+    </main>
   </Shell>
 );
 
@@ -350,6 +362,15 @@ export const SettingsPage: FC<{ ctx: Ctx; values: FormFields; aiOn: boolean; err
       </div>
 
       <div class="card">
+        <h2 style="margin-top:0">Payment reminders</h2>
+        <div class="row">
+          <Field label="First reminder (days before due date)" name="payments_lead_days" type="number" value={v.payments_lead_days!} hint="Then on the due date, and 1 and 2 days after." />
+          <Field label="Currency" name="payments_currency" value={v.payments_currency!} hint="3-letter code, e.g. INR." />
+        </div>
+        <Field label="How to pay (shown in every reminder)" name="payments_instructions" rows={3} value={v.payments_instructions!} hint="For example a UPI id or bank details. Leave empty to say nothing." />
+      </div>
+
+      <div class="card">
         <h2 style="margin-top:0">Forms, consent and WhatsApp</h2>
         <Field label="Consent text (stored with every enquiry)" name="consent_text" rows={3} value={v.consent_text!} />
         <Field label="Thank-you page URL" name="thank_you_url" type="url" value={v.thank_you_url!} hint="Where visitors go after a plain form post. Empty = built-in thank-you page." />
@@ -369,7 +390,7 @@ export const AdminPage: FC<{
   ctx: Ctx;
   clients: AdminClient[];
   admins: { id: string; email: string }[];
-  cap: { sentToday: number; cap: number; reserve: number };
+  cap: { sentToday: number; cap: number; reserve: number; monthUsed: number; monthlyCap: number; rampDay: number | null; rampCap: number | null; flags: Flags };
   ai: { calls: number; ok: number; neurons: number };
   errors?: string[];
 }> = ({ ctx, clients, admins, cap, ai, errors }) => (
@@ -377,8 +398,33 @@ export const AdminPage: FC<{
     <h1>Admin</h1>
     {errors && errors.length > 0 && <div class="err"><ul>{errors.map((e) => <li>{e}</li>)}</ul></div>}
     <div class="grid">
-      <div class="stat"><b>{cap.sentToday} / {cap.cap}</b><span>Emails sent today (UTC day). Follow-ups pause at {cap.cap - cap.reserve}.</span></div>
+      <div class="stat"><b>{cap.sentToday} / {cap.cap}</b><span>Emails today, sent plus replies received (UTC day). Follow-ups and reminders pause at {cap.cap - cap.reserve}.{cap.rampCap !== null ? ` New-domain ramp-up: day ${(cap.rampDay ?? 0) + 1}.` : ''}</span></div>
+      <div class="stat"><b>{cap.monthUsed} / {cap.monthlyCap}</b><span>This month. Resend's free plan allows 3,000 (received replies count too).</span></div>
       <div class="stat"><b>{ai.calls}</b><span>AI calls today ({ai.ok} ok) · ≈{Math.round(ai.neurons)} of 10,000 free neurons</span></div>
+    </div>
+    <h2>Sending status</h2>
+    <div class="card">
+      {cap.flags.pause_all.on || cap.flags.pause_automated.on ? (
+        <div class="err">
+          {cap.flags.pause_all.on && <p style="margin:0 0 6px"><b>All sending to people is paused.</b> {cap.flags.pause_all.reason}</p>}
+          {cap.flags.pause_automated.on && <p style="margin:0"><b>Follow-ups and payment reminders are paused.</b> {cap.flags.pause_automated.reason}</p>}
+        </div>
+      ) : (
+        <p style="margin-top:0">Everything is sending normally.</p>
+      )}
+      <div class="row">
+        <form method="post" action="/app/admin/sending" class="fit">
+          <input type="hidden" name="action" value={cap.flags.pause_all.on ? 'resume_all' : 'pause_all'} />
+          <button type="submit" class={cap.flags.pause_all.on ? 'ok' : 'bad'}>{cap.flags.pause_all.on ? 'Resume all sending' : 'Pause ALL sending now'}</button>
+        </form>
+        {cap.flags.pause_automated.on && (
+          <form method="post" action="/app/admin/sending" class="fit">
+            <input type="hidden" name="action" value="resume_automated" />
+            <button type="submit" class="ok">Resume follow-ups and reminders</button>
+          </form>
+        )}
+      </div>
+      <p class="small mute" style="margin-bottom:0">Follow-ups and payment reminders pause by themselves after any spam complaint, or if bounces pass 2%. Look at Resend's Metrics page before resuming.</p>
     </div>
     <h2>Clients</h2>
     <div class="card scroll">

@@ -20,6 +20,14 @@ export interface Env {
   /** Shared ATOMZ sender address, e.g. enquiries@mail.example.com (verified in Resend). */
   DEFAULT_FROM_EMAIL?: string;
   DAILY_EMAIL_CAP?: string;
+  /** Stay under Resend's 3,000/month free quota (received mail counts too). Default 2700. */
+  MONTHLY_EMAIL_CAP?: string;
+  /** New-domain ramp, "25:7,50:7" = 25/day for 7 days then 50/day for 7 days. "off" disables. */
+  RAMP_SCHEDULE?: string;
+  /** "true" once Resend receiving is enabled for the sending subdomain: replies are then also sent to a tagged inbound address. */
+  INBOUND_ENABLED?: string;
+  /** Domain that receives replies (default: the domain of DEFAULT_FROM_EMAIL). */
+  INBOUND_REPLY_DOMAIN?: string;
   FOLLOWUP_RESERVE?: string;
   /** Max jobs per cron run (Workers Free allows 50 subrequests per invocation). */
   CRON_BATCH?: string;

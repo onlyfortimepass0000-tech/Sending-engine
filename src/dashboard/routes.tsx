@@ -12,7 +12,8 @@ import { baseUrl } from '../lib/compose';
 import type { Deps } from '../lib/deps';
 import { mailerFor } from '../lib/deps';
 import { getLead } from '../lib/leads';
-import { capUsage, emailsSentToday, dailyCap } from '../lib/outbox';
+import { capUsage } from '../lib/outbox';
+import { gate, loadLimits } from '../lib/safety';
 import { normalizeOrigin } from '../lib/origin';
 import { hit } from '../lib/ratelimit';
 
@@ -21,9 +22,11 @@ import { whatsappLink } from '../lib/whatsapp';
 import { templateVars } from '../lib/compose';
 import { adminClientRows, aiUsageToday, filterOptions, listLeads, overview, pendingFollowups, timeline } from './queries';
 import { formToSettings, settingsToForm, type FormFields } from './settings-form';
+import { mountPayments } from './payments-routes';
+import type { DEnv } from './types';
+import { getFlags, setFlag, type FlagKey } from '../lib/safety';
 import { AdminClientPage, AdminPage, ConfirmSignIn, LeadPage, LeadsPage, LoginPage, MessagePage, OverviewPage, SettingsPage, type Ctx } from './views';
 
-type DEnv = { Bindings: Env; Variables: { now: () => number; deps: Deps; user: SessionUser } };
 type C = Context<DEnv>;
 
 export const dashboard = new Hono<DEnv>();
@@ -70,7 +73,7 @@ async function sendLoginLink(c: C, user: SessionUser) {
   const { env } = c;
   const deps = c.get('deps');
   const now = c.get('now')();
-  if ((await emailsSentToday(env.DB, now)) >= dailyCap(env)) throw new Error('daily email cap reached');
+  if (gate('login', await loadLimits(env, env.DB, now)) !== 'ok') throw new Error('email limit reached');
   const token = await createMagicLink(env.DB, user.id, now);
   const link = `${baseUrl(env, new URL(c.req.url).origin)}/app/auth/${token}`;
   const address = env.DEFAULT_FROM_EMAIL ?? (env.DRY_RUN === 'true' ? 'enquiries@example.invalid' : undefined);
@@ -87,7 +90,7 @@ async function sendLoginLink(c: C, user: SessionUser) {
     { idempotencyKey: `login:${await sha256Hex(token)}` },
   );
   await env.DB
-    .prepare("INSERT INTO email_log (id, client_id, lead_id, kind, resend_id, status, created_at) VALUES (?, ?, NULL, 'login', ?, ?, ?)")
+    .prepare("INSERT INTO email_log (id, client_id, lead_id, kind, resend_id, status, recipients, created_at) VALUES (?, ?, NULL, 'login', ?, ?, 1, ?)")
     .bind(crypto.randomUUID(), user.client_id, sent.id, sent.dryRun ? 'dry_run' : 'sent', new Date(now).toISOString())
     .run();
 }
@@ -110,6 +113,7 @@ dashboard.use('*', async (c, next) => {
   const user = await getSessionUser(c.env.DB, getCookie(c, SESSION_COOKIE), c.get('now')());
   if (!user) return c.redirect('/app/login');
   c.set('user', user);
+  if (user.role === 'admin') c.set('flags', await getFlags(c.env.DB));
   await next();
 });
 
@@ -126,7 +130,7 @@ async function scopeOf(c: C): Promise<ClientRecord | null> {
   const id = user.role === 'client' ? user.client_id : getCookie(c, SCOPE_COOKIE);
   return id ? findClientById(c.env.DB, id) : null;
 }
-const ctxOf = (c: C, scope: ClientRecord | null): Ctx => ({ user: c.get('user'), scope });
+const ctxOf = (c: C, scope: ClientRecord | null): Ctx => ({ user: c.get('user'), scope, flags: c.get('flags') });
 
 /** No client in scope: admins pick one, client users have nothing to show. */
 const noScope = (c: C) =>
@@ -271,6 +275,22 @@ async function adminPage(c: C, errors?: string[], status: 200 | 400 | 409 | 422 
 
 dashboard.get('/admin', (c) => adminPage(c));
 
+// Sending switches: pause everything to people, or resume what the circuit breaker paused.
+dashboard.post('/admin/sending', async (c) => {
+  const action = (await form(c)).action;
+  const by = `user:${c.get('user').id}`;
+  const now = c.get('now')();
+  const todo: Record<string, [FlagKey, boolean, string | null]> = {
+    pause_all: ['pause_all', true, 'Paused by an admin'],
+    resume_all: ['pause_all', false, null],
+    pause_automated: ['pause_automated', true, 'Paused by an admin'],
+    resume_automated: ['pause_automated', false, null],
+  };
+  const t = todo[action ?? ''];
+  if (t) await setFlag(c.env.DB, t[0], t[1], t[2], by, now);
+  return c.redirect('/app/admin', 303);
+});
+
 dashboard.post('/admin/clients', async (c) => {
   const f = await form(c);
   const errors: string[] = [];
@@ -357,3 +377,4 @@ dashboard.post('/admin/users/:id/delete', async (c) => {
   return c.redirect(sameSitePath(c.req.header('referer'), c.req.url) ?? '/app/admin', 303);
 });
 
+mountPayments(dashboard, { scopeOf, ctxOf, form, noScope, notFound });

@@ -1,13 +1,14 @@
 # PROGRESS (read this first, nothing else; keep under 60 lines)
 
 ## Status
-DEPLOYED: https://enquiry-engine.tool-checklist-tracker.workers.dev (D1 enquiry-engine, migrations applied, cron */5, [ai] bound,
- TOKEN_SECRET set; DEFAULT_FROM_EMAIL enquiries@mail.atomz.online; Resend domain mail.atomz.online verified, DNS in Vercel).
-LEFT: RESEND_API_KEY (NEW key; the first one was pasted in chat, rotate) + RESEND_WEBHOOK_SECRET set by the user in the CF dashboard,
- first admin row, client zero (ATOMZ site), live end-to-end test. ADMIN_API_TOKEN intentionally unset (export returns 503).
+LIVE: https://enquiry-engine.tool-checklist-tracker.workers.dev (D1 enquiry-engine fad4c0fa..., cron */5, [ai], secrets TOKEN_SECRET
+ RESEND_API_KEY RESEND_WEBHOOK_SECRET; sender enquiries@mail.atomz.online; Resend domain verified). ATOMZ = client zero + admin login exist.
+BUILT, see git log for deploy state: migration 0002 (payments + safety), Payments module (/app/payments), safety layer (EMAIL-SAFETY.md).
+LEFT: after deploy, user does the 2 Resend steps (Enable receiving on mail.atomz.online; add email.received to the webhook), then set
+ INBOUND_ENABLED="true" in wrangler.toml and redeploy. Not built (user said later): cold outreach. ADMIN_API_TOKEN unset on purpose.
 
 ## Run
-- `npm test` (137 tests; Node + node:sqlite D1 double, applies the real /migrations) | `npm run typecheck`
+- `npm test` (198 tests; Node + node:sqlite D1 double, applies the real /migrations) | `npm run typecheck`
 - `npm run smoke` = 30 live checks on real workerd + fresh local D1 (all stages). Embed script also verified in headless Chromium
   from another origin (cross-origin CORS, first-touch utm, default form, allow-list refusal).
 - Local dev: `cp .dev.vars.example .dev.vars; npm run db:migrate:local; npm run db:seed:local; npm run dev` (DRY_RUN prints emails and
@@ -26,7 +27,7 @@ Stage 1 (intake): only email required; field aliases; source = explicit > utm_so
 Emails: every email is a sequence_jobs row (auto_reply|owner_alert|followup); id = idempotency key = Resend Idempotency-Key.
  Lease claim (due_at += 10 min) so request path and cron never double-send. Retry 5/10/20/40/80 min, 6 attempts; 400/422 permanent.
  Intake writes all jobs before answering; sending runs in waitUntil; cron (*/5) is the safety net.
-Cap: DAILY_EMAIL_CAP 95 per UTC day (counts sent+dry_run incl. login mails). Priority auto_reply > alert > follow-up; follow-ups only
+Cap (src/lib/safety.ts): min(DAILY_EMAIL_CAP 95, ramp 25/day wk1, 50 wk2 from first real send); per recipient; received replies count; MONTHLY_EMAIL_CAP 2700. Priority auto_reply > alert > follow-up; follow-ups only
  while sent < cap - FOLLOWUP_RESERVE (default 19). Held jobs stay pending. CRON_BATCH=6 (Workers Free: 50 subrequests/invocation).
 Sender: shared DEFAULT_FROM_EMAIL, From-name = business, Reply-To = settings.reply_to. Never send "as" the client's own mailbox.
  settings.from_email (admin-only) switches a client to its own verified domain. Unsubscribe link/headers only on lead-facing mails.
@@ -41,19 +42,20 @@ Follow-up times are fixed at lead creation (day N at the lead's arrival time, cl
 Dashboard: server-rendered Hono JSX, zero JS, CSP script-src none, no caching. Session cookie ee_session (HttpOnly, Lax, 14d,
  hash in DB). Admin "acting as" cookie ee_client. Client users only ever see their client_id; other clients' lead ids = 404.
  Settings use friendly text formats (categories "Name: kw, kw"; follow-ups = blocks split by "---").
-Migration 0001 was amended in place in Stages 2-4 (never deployed). From the first real deploy on, migrations are append-only.
+Migrations are append-only (0001 deployed). 0002: payment_* tables, system_flags, inbound_events, email_log rebuilt (+recipients, +payment_reminder).
+
+## Safety + Payments (src/lib/safety.ts, src/lib/payments/*, src/dashboard/payments-*.tsx)
+Pause flags (system_flags): pause_all stops mail to people (alerts + login still go), pause_automated stops follow-ups + reminders; breaker sets
+ pause_automated on any complaint or bounce rate >2% (>=20 sends) after last resume; admin buttons on /app/admin. Resend 429 = wait for reset.
+Payments (port of kalakruti/, which stays as reference): stages due-lead, due, +1, +2 then Needs Attention; one per entry per day; claim row
+ (payment_sends unique live index) before send; money in minor units; paid/part-paid; import = paste CSV/TSV + attestation tick + saved report;
+ >30 days overdue imports PAUSED; /p/:token stop link (GET page, POST acts) suppresses address. Reply detection: Reply-To also lists
+ p.<entry>.<hmac>@domain / l.<lead>.<hmac>@domain (needs INBOUND_ENABLED=true + Resend receiving); email.received -> entry Needs Attention
+ (replied) or lead sequence stopped. Cron budget CRON_BATCH shared: auto_reply/alert -> payments -> follow-ups.
 
 ## Stage 5 notes
-- embed.js: ES5, no build step, reads ?key= from its own URL, config at GET /api/intake/:key/config (business + consent text).
-  Hosted form /f/:slug is plain HTML (no JS): ?src= sets the source, utm_* and external Referer pass through.
-- Export: Bearer ADMIN_API_TOKEN, ?client=<id|slug>&since&until&limit&offset; wrong tokens throttled (10 / 10 min / IP).
-- Safety: real emails refuse to send while PUBLIC_BASE_URL is localhost / YOUR-SUBDOMAIN (falls back to the request origin in the intake path).
-- The Cloudflare MCP connector can list/create D1 but cannot deploy Workers, secrets, cron or DNS: deploy = wrangler (DEPLOY.md).
-  Account already has D1 tool-checklist-db, cadence-db and Worker tool-checklist-tracker: do not touch.
-- NOT verified (needs real accounts): Workers AI output quality, real Resend delivery, Resend webhook payload shape (coded from docs).
-
-## Needs the human (see DEPLOY.md checklist)
-Resend account + key + subdomain DNS (not the Instantly warm-up domain); wrangler login/deploy + secrets (or an API token via the credential
-form); admin email; client zero details; consent wording sign-off (DEFAULT_CONSENT_TEXT in lib/settings.ts); final product name.
-OPEN: Excel/own-database: user wants (1) blank DB filled by form submits = what is built, (2) import contacts and email them = NOT built
-(outbound/consent risk). Per-client webhook_url for pushing leads to Sheets/CRM is the suggested post-v1 add-on.
+- embed.js ES5, config at GET /api/intake/:key/config; hosted form /f/:slug is plain HTML. Export: Bearer ADMIN_API_TOKEN (unset = 503).
+- Real mail refuses to send while PUBLIC_BASE_URL is localhost / YOUR-SUBDOMAIN. Deploy with wrangler (CF MCP cannot deploy Workers).
+  Account also has D1 tool-checklist-db, cadence-db and Worker tool-checklist-tracker: do not touch.
+## Open
+Cold outreach (user priority, deferred): separate tables, own domain(s), dry-run default, kill switch. Per-client webhook_url push to Sheets/CRM.

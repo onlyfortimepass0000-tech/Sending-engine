@@ -201,7 +201,7 @@ describe('transports', () => {
     const [url, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://api.resend.com/emails');
     expect(init.headers).toMatchObject({ authorization: 'Bearer key_abc', 'idempotency-key': 'job-1' });
-    expect(JSON.parse(init.body as string)).toMatchObject({ from: msg.from, to: msg.to, reply_to: 'o@acme.io', headers: msg.headers });
+    expect(JSON.parse(init.body as string)).toMatchObject({ from: msg.from, to: msg.to, reply_to: ['o@acme.io'], headers: msg.headers });
   });
 
   it('Resend: 400/422 are permanent; 401/403/409/429/5xx and network errors are retryable', async () => {

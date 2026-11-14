@@ -3,6 +3,7 @@ import type { AppEnv } from './env';
 import { getLead, type LeadStatus } from './lib/leads';
 import { confirmPage, messagePage } from './lib/pages';
 import { setLeadStatus, suppressAddress } from './lib/status';
+import { getEntry, stopForCustomer } from './lib/payments/store';
 import { requireSecret, verifyToken, type TokenPayload } from './lib/token';
 
 /** Outcome buttons in the owner alert. "Call later" = we have been in touch and will call back, so the lead moves to "contacted". */
@@ -64,4 +65,24 @@ links.post('/u/:token', async (c) => {
   }
   // Same answer whether or not the lead still exists.
   return messagePage(200, 'You are unsubscribed', 'You will not receive any more follow-up emails from us.');
+});
+
+// ---- payment reminders: "Stop these reminders" (GET = confirmation page, POST = stop; also the one-click target)
+links.get('/p/:token', async (c) => {
+  const v = await check(c, c.req.param('token'), (a) => a === 'pstop');
+  if (!v.ok) return v.res;
+  return confirmPage('Stop these payment reminders?', 'You will not get any more automatic reminders. The business will be told you asked to stop.', 'Stop reminders');
+});
+
+links.post('/p/:token', async (c) => {
+  const v = await check(c, c.req.param('token'), (a) => a === 'pstop');
+  if (!v.ok) return v.res;
+  const entry = await getEntry(c.env.DB, v.payload.l);
+  if (entry) {
+    const now = c.get('now')();
+    await stopForCustomer(c.env.DB, entry, 'asked_to_stop', 'Customer pressed "Stop these reminders"', 'recipient', now);
+    // no other automatic email either (follow-ups, other reminders) to this address for this business
+    await suppressAddress(c.env.DB, { clientId: entry.client_id, email: entry.email, reason: 'unsubscribe', actor: 'recipient', nowMs: now });
+  }
+  return messagePage(200, 'Reminders stopped', 'You will not receive any more automatic reminders. If you have a question, please contact the business directly.');
 });

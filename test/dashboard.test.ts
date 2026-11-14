@@ -57,6 +57,18 @@ async function twoClients() {
   return { t, a, b };
 }
 
+describe('payment settings form', () => {
+  it('round-trips lead days, currency and instructions, and rejects out-of-range values', () => {
+    const s = settingsSchema.parse({});
+    expect(s.payments).toMatchObject({ lead_days: 3, currency: 'INR' });
+    const form = { ...settingsToForm(s), payments_lead_days: '5', payments_currency: 'usd', payments_instructions: 'Pay by UPI to 98xxxx' };
+    const r = formToSettings(form, s, true);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.settings.payments).toMatchObject({ lead_days: 5, currency: 'USD', instructions: 'Pay by UPI to 98xxxx' });
+    expect(formToSettings({ ...form, payments_lead_days: '99' }, s, true).ok).toBe(false);
+  });
+});
+
 describe('magic-link login', () => {
   it('emails a link; GET only shows a button (scanner-safe); POST signs in once; session cookie is HttpOnly', async () => {
     const t = await setup();
@@ -351,7 +363,7 @@ describe('admin', () => {
     const page = await (await admin.get('/app/admin')).text();
     expect(page).toContain('Acme Dental');
     expect(page).toContain('Beta Salon');
-    expect(page).toMatch(/Emails sent today[^<]*<\/span>|<b>\d+ \/ 95<\/b>/);
+    expect(page).toMatch(/Emails sent today[^<]*<\/span>|<b>\d+ \/ 25<\/b>/);
 
     const created = await admin.post('/app/admin/clients', { name: 'Gamma Gym', slug: '', allowed_origins: 'https://gammagym.example\nhttps://www.gammagym.example', timezone: 'Asia/Kolkata', owner_email: 'owner@gamma.example' });
     expect(created.status).toBe(303);
@@ -418,8 +430,8 @@ describe('admin', () => {
     expect(html).toContain('Acme Lead');
     expect(html).not.toContain('Beta Lead');
     const adminPage = await (await admin.get('/app/admin')).text();
-    expect(adminPage).toMatch(/<b>\d+ \/ 95<\/b>/);
-    expect(adminPage).toContain('Follow-ups pause at 76');
+    expect(adminPage).toMatch(/<b>\d+ \/ 25<\/b>/); // new-domain ramp-up: 25 a day in the first week
+    expect(adminPage).toContain('Follow-ups and reminders pause at 20');
     expect(adminPage).toContain('AI calls today');
   });
 });

@@ -57,16 +57,20 @@ Then either add `data-enquiry` to an existing form, or place `<div data-enquiry-
 - **Separate clients**: a client's login can only reach that client's data.
 - **Secrets**: keys are kept in Cloudflare as hidden secrets, never in the code.
 
+## Payment reminders (second module)
+
+For clients who are owed money. The owner pastes a list (name, email, amount, due date) or adds one entry; four polite reminders go out (3 days before, on the day, 1 day late, 2 days late), one per day at most, inside sending hours. Every email says "If you have already made this payment, thank you. Please ignore this email." and has a "Stop these reminders" link. The owner marks payments **received in full, part paid or not received**; part payments keep reminding for the balance only. After the fourth reminder, or if the customer replies, bounces or asks to stop, the entry moves to **Needs attention** for a human. Every import saves a report (rows received, imported, skipped and why). Rows more than 30 days overdue are imported paused.
+
 ## How emails are protected
 
-The free Resend plan allows about 100 emails a day, so the system stops at 95. If the limit is reached, new-enquiry replies and owner alerts go first, then follow-ups. Anything left waits until the next day. Bounces and complaints are picked up automatically so the sending reputation stays clean.
+The free Resend plan allows 100 emails a day and 3,000 a month, so the system stops at 95 a day and 2,700 a month, counts each recipient and each received reply, and starts a new domain slowly (25 a day for a week, 50 for the next). New-enquiry replies and owner alerts go first, then follow-ups and reminders; the rest wait. Any spam complaint, or a bounce rate above 2%, pauses all automatic mail until an admin has looked (red banner, one-tap resume). An admin can also pause everything with one button. Bounces and complaints are picked up automatically. See `EMAIL-SAFETY.md`.
 
 ## How it is built (short)
 
 - Runs on **Cloudflare** (a small server program, a database and a scheduler that runs every 5 minutes).
 - Sends email through **Resend**, from `enquiries@mail.atomz.online` with the client's name as the sender.
 - One system serves every client. Nothing is copied per client.
-- Fully tested: 137 automated checks, plus a live test that runs the whole flow.
+- Fully tested: 198 automated checks, plus a live test that runs the whole flow.
 
 ## Where it stands today
 
@@ -77,7 +81,7 @@ The free Resend plan allows about 100 emails a day, so the system stops at 95. I
 
 ## What it does not do (yet)
 
-- Import a list of contacts and email them (that is bulk outreach, a different product with consent risk).
+- Cold outreach to people who never dealt with the client (a different product with consent risk; planned separately).
 - Push leads into Excel, Google Sheets or a CRM. A simple per-client webhook is the suggested next addition.
 - The WhatsApp or Instagram APIs, SMS, billing, or reading customer replies.
 - A custom web address (the current one reuses an older project's name). This can be fixed later by moving the `atomz.online` DNS to Cloudflare.
@@ -90,3 +94,5 @@ The free Resend plan allows about 100 emails a day, so the system stops at 95. I
 | `README.md` | Short developer guide. |
 | `DEPLOY.md` | Step-by-step go-live guide (accounts, DNS, secrets). |
 | `PROGRESS.md` | Decisions made, current status, what is left. |
+| `EMAIL-SAFETY.md` | Resend and Gmail limits, flagging rules, our safeguards, and the Resend setup steps for reply detection. |
+| `kalakruti/` | The original payment-reminder project, kept untouched as a reference. Its logic now lives in the Payments module. |

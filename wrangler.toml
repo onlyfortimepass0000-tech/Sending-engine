@@ -18,6 +18,13 @@ crons = ["*/5 * * * *"]
 # Real emails refuse to send while this still says YOUR-SUBDOMAIN or localhost. Local dev overrides it from .dev.vars.
 PUBLIC_BASE_URL = "https://enquiry-engine.tool-checklist-tracker.workers.dev"
 DAILY_EMAIL_CAP = "95"
+# Resend free plan is 3,000 a month; we stop at 2,700 to keep headroom (received replies count too).
+MONTHLY_EMAIL_CAP = "2700"
+# New-domain ramp-up: 25 a day for 7 days, then 50 a day for 7 days, then DAILY_EMAIL_CAP. "off" disables it.
+RAMP_SCHEDULE = "25:7,50:7"
+# Automatic reply detection. Turn ON ("true") only AFTER "Enable receiving" is done for mail.atomz.online in Resend
+# and the webhook also sends email.received (see EMAIL-SAFETY.md section 5). Until then replies would bounce.
+INBOUND_ENABLED = "false"
 # Shared sender, an address on a domain verified in Resend (see DEPLOY.md):
 DEFAULT_FROM_EMAIL = "enquiries@mail.atomz.online"
 

@@ -30,18 +30,22 @@ class Statement {
     return { success: true, results: rows.map((r) => ({ ...r })) as T[], meta: { changes: 0 } };
   }
 
-  async run() {
+  runSync() {
     const info = this.db.prepare(this.sql).run(...this.params);
     return { success: true, results: [], meta: { changes: Number(info.changes), last_row_id: Number(info.lastInsertRowid) } };
   }
 
+  async run() {
+    return this.runSync();
+  }
+
   /** What batch() returns per statement in real D1: rows for statements that return rows, write metadata otherwise. */
-  async exec() {
+  execSync() {
     const stmt = this.db.prepare(this.sql);
     if (stmt.columns().length > 0) {
       return { success: true, results: stmt.all(...this.params).map((r) => ({ ...(r as Record<string, unknown>) })), meta: { changes: 0 } };
     }
-    return this.run();
+    return this.runSync();
   }
 
   async raw() {
@@ -62,10 +66,11 @@ class TestD1 {
   }
   /** D1 batches are transactional: all statements apply or none do. */
   async batch(statements: Statement[]) {
+    // no await inside: like real D1, a batch is applied atomically and cannot interleave with another one
     this.sqlite.exec('BEGIN');
     try {
       const out = [];
-      for (const s of statements) out.push(await s.exec());
+      for (const s of statements) out.push(s.execSync());
       this.sqlite.exec('COMMIT');
       return out;
     } catch (e) {
