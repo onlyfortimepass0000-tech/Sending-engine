@@ -1,9 +1,8 @@
 # PROGRESS (read this first, nothing else; keep under 60 lines)
-
 ## Status
 LIVE: https://enquiry-engine.tool-checklist-tracker.workers.dev (D1 enquiry-engine fad4c0fa..., cron */5, [ai], secrets TOKEN_SECRET
  RESEND_API_KEY RESEND_WEBHOOK_SECRET; sender enquiries@mail.atomz.online; Resend domain verified). ATOMZ = client zero + admin login exist.
-BUILT, see git log for deploy state: migration 0002 (payments + safety), Payments module (/app/payments), safety layer (EMAIL-SAFETY.md).
+DEPLOYED 14 Nov 2026: migration 0002 + Payments (/app/payments) + safety layer (EMAIL-SAFETY.md). Backup taken before 0002.
 LEFT: after deploy, user does the 2 Resend steps (Enable receiving on mail.atomz.online; add email.received to the webhook), then set
  INBOUND_ENABLED="true" in wrangler.toml and redeploy. Not built (user said later): cold outreach. ADMIN_API_TOKEN unset on purpose.
 
